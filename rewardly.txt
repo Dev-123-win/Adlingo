@@ -1,0 +1,334 @@
+# Detailed Flutter App Implementation Guide
+
+## 1. Project Overview
+
+**App Name:** Rewardly  
+**Package Name:** `com.supreet.rewardly`  
+**Tech Stack:** Flutter (Dart), Firebase Auth, Cloud Firestore, Firebase Remote Config, Google Analytics  
+**Monetization:** AdMob Banners, Interstitials, Rewarded Ads  
+**Target Audience:** Users looking to earn small rewards by engaging with advertisements.
+
+## 2. Technical Architecture
+
+### State Management
+- **Provider or Riverpod** - Recommended for its simplicity and effectiveness with Firebase streams.
+
+### Dependency Injection
+- A dedicated `providers.dart` file to initialize and provide Firebase/Auth/AdMob/Remote Config services.
+
+### Folder Structure
+
+```
+lib/
+├── main.dart
+├── models/
+│   ├── user_model.dart
+│   ├── withdrawal_model.dart
+│   └── ad_watch_record_model.dart
+├── providers/
+│   ├── auth_provider.dart
+│   ├── user_provider.dart
+│   ├── ads_provider.dart
+│   ├── withdrawal_provider.dart
+│   └── remote_config_provider.dart
+├── services/
+│   ├── firestore_service.dart
+│   ├── auth_service.dart
+│   ├── ad_service.dart
+│   ├── remote_config_service.dart
+│   └── notification_service.dart
+├── utils/
+│   ├── constants.dart
+│   ├── utilities.dart
+│   └── theme.dart
+├── screens/
+│   ├── auth/
+│   │   ├── login_screen.dart
+│   │   ├── register_screen.dart
+│   │   └── reset_password_screen.dart
+│   ├── home_screen.dart
+│   ├── watch_earn_screen.dart
+│   ├── profile_screen.dart
+│   ├── withdraw_screen.dart
+│   ├── referrals_screen.dart
+│   ├── empty_features/
+│   │   ├── empty_feature_1_screen.dart
+│   │   ├── empty_feature_2_screen.dart
+│   │   ├── empty_feature_3_screen.dart
+│   │   ├── empty_feature_4_screen.dart
+│   │   └── empty_feature_5_screen.dart
+│   └── admin/
+│       └── admin_panel_screen.dart
+```
+
+## 3. Firebase Firestore Data Structure
+
+### users Collection
+
+```json
+{
+  "email": "user@example.com",
+  "coins": 250,
+  "createdAt": "Timestamp",
+  "lastDailyReset": "Timestamp",
+  "adsWatchedToday": 3,
+  "referralCode": "A1B2C3b4",
+  "referredBy": "E5F6G7H8",
+  "totalEarned": 500
+}
+```
+
+### withdrawals Collection
+
+```json
+{
+  "userId": "Firebase Auth UID",
+  "email": "user@example.com",
+  "amount": 100,
+  "method": "paypal",
+  "details": {
+    "paypal_email": "email@paypal.com"
+  },
+  "status": "pending",
+  "requestedAt": "Timestamp",
+  "processedAt": "Timestamp",
+  "adminNotes": "Rejected due to invalid details."
+}
+```
+
+## 4. Screen-by-Screen Implementation Details
+
+### Authentication Flow
+
+**UI:** Clean, centered logo at the top. Email and Password fields with clear labels.  
+**Logic:** Robust validation, error handling, and loading states.  
+**Bugs to Avoid:** Always dispose TextEditingControllers, handle errors gracefully, implement loading states.
+
+### Splash Screen
+
+**UI:** Full-screen widget with the Rewardly logo centered.  
+**Logic:** Initialize dependencies, fetch Remote Config, check auth state.  
+**Bugs to Avoid:** Don't block main thread with long delays.
+
+### Home Screen
+
+**UI:**
+- **App Bar:** Title: "Rewardly". Trailing: User's email.
+- **Body:** A centered card displaying the user's coin balance.
+- **Grid Below Balance:** A `GridView` (2x3 or 3x3) with:
+  - **Card 1: Watch & Earn** - Icon: `Icons.videocam`. Leads to `WatchEarnScreen()`.
+  - **Card 2: Refer & Earn** - Icon: `Icons.group_add`. Leads to `ReferralsScreen()`.
+  - **Card 3: Withdraw** - Icon: `Icons.account_balance_wallet`. Leads to `WithdrawScreen()`.
+  - **Card 4: Profile** - Icon: `Icons.person`. Leads to `ProfileScreen()`.
+  - **Card 5: Empty Feature 1** - Icon: `Icons.star_border`. Leads to `EmptyFeature1Screen()`.
+  - **Card 6: Empty Feature 2** - Icon: `Icons.card_giftcard`. Leads to `EmptyFeature2Screen()`.
+  - **Card 7: Empty Feature 3** - Icon: `Icons.lock_outline`. Leads to `EmptyFeature3Screen()`.
+  - **Card 8: Empty Feature 4** - Icon: `Icons.explore`. Leads to `EmptyFeature4Screen()`.
+  - **Card 9: Empty Feature 5** - Icon: `Icons.extension`. Leads to `EmptyFeature5Screen()`.
+
+**Bugs to Avoid:** Ensure auth state is properly listened to for updates.
+
+### Bottom Navigation Bar
+
+**Implementation:** Add a persistent `BottomNavigationBar` to the main app scaffold with 4 items:
+- Home (leads to HomeScreen)
+- Watch & Earn (leads to WatchEarnScreen)
+- Withdraw (leads to WithdrawScreen)
+- Profile (leads to ProfileScreen)
+
+**UI:** Use appropriate icons and labels for each navigation item.  
+**State Management:** Manage current index using `StatefulWidget` or provider.  
+**Scroll Behavior:** Implement scroll hiding behavior using `ScrollController` and `ScrollDirection`:
+
+```dart
+ScrollController _hideBottomNavController = ScrollController();
+bool _isBottomNavVisible = true;
+
+@override
+void initState() {
+  super.initState();
+  _hideBottomNavController.addListener(() {
+    if (_hideBottomNavController.position.userScrollDirection == 
+        ScrollDirection.reverse) {
+      if (_isBottomNavVisible) {
+        setState(() => _isBottomNavVisible = false);
+      }
+    }
+    if (_hideBottomNavController.position.userScrollDirection == 
+        ScrollDirection.forward) {
+      if (!_isBottomNavVisible) {
+        setState(() => _isBottomNavVisible = true);
+      }
+    }
+  });
+}
+```
+
+### Hiding on Specific Screens
+For empty feature screens, hide the bottom nav bar completely:
+
+```dart
+// In empty feature screens
+@override
+Widget build(BuildContext context) {
+  return Scaffold(
+    appBar: AppBar(title: Text("Coming Soon")),
+    body: Center(child: Text("Feature coming in a future update!")),
+    // No bottomNavigationBar property to hide it completely
+  );
+}
+```
+
+### Watch & Earn Screen
+
+**UI:**
+- **App Bar:** Title: "Watch & Earn".
+- **Body:** Progress indicator, watch button, disabled state when limit reached.
+
+**Logic:** Daily limit reset, rewarded ad handling, Remote Config for reward amount.  
+**Bugs to Avoid:** Race conditions, ad availability checks, disposing ad objects.
+
+### Profile Screen
+
+**UI:** Simple list with email, coin balance, and logout button.  
+**Logic:** Display user info, handle logout.  
+**Bugs to Avoid:** Proper navigation stack clearing on logout.
+
+### Withdraw Screen
+
+**UI:** Tabbed interface with request form and history.  
+**Logic:** Form validation, withdrawal request creation, history display.  
+**Bugs to Avoid:** Amount validation, atomic operations for coin deduction.
+
+### Referral Screen
+
+**UI:** Referral code display, copy button, share functionality.  
+**Logic:** Referral code generation, sharing, bonus handling.  
+**Bugs to Avoid:** Fraud prevention through backend logic.
+
+### Empty Feature Screens
+
+**Implementation:** Create five separate screens (`EmptyFeature1Screen` to `EmptyFeature5Screen`) with unique content.
+
+**UI:** Each screen should have:
+- A custom icon (different for each screen)
+- A title "Feature Coming Soon"
+- A descriptive text about the planned feature
+- A progress indicator or timeline indicator
+
+**Navigation:** Each of the 5 empty cards on the HomeScreen should navigate to its respective screen.
+
+**Example Implementation for EmptyFeature1Screen:**
+
+```dart
+class EmptyFeature1Screen extends StatelessWidget {
+  const EmptyFeature1Screen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Daily Bonuses"),
+        automaticallyImplyLeading: true,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.star_border, size: 64, color: Colors.amber),
+            SizedBox(height: 20),
+            Text("Daily Bonuses",
+              style: Theme.of(context).textTheme.headlineSmall),
+            SizedBox(height: 16),
+            Text("Coming soon: Claim daily bonus rewards!\n"
+              "Check back every day to increase your earnings.",
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium),
+            SizedBox(height: 24),
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text("Estimated launch: v1.2.0",
+              style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ),
+    );
+  }
+}
+```
+
+**Bugs to Avoid:** Ensure each screen has a unique route and proper navigation back to home.
+
+### Admin Panel
+
+**Access Control:** Email-based access restriction.  
+**UI:** Tabbed interface with dashboard and withdrawal management.  
+**Logic:** Stats display, withdrawal approval/rejection.  
+**Bugs to Avoid:** Proper access control, coin refund on rejection.
+
+## 5. AdMob Integration & Ad Placement Strategy
+
+**Banner Ads:** Place at the bottom of HomeScreen, ProfileScreen, WithdrawScreen, and ReferralsScreen.  
+**Interstitial Ads:** Show after completing a rewarded ad session.  
+**Rewarded Ads:** Exclusive to WatchEarnScreen.  
+**Implementation:** Use `google_mobile_ads` package, initialize in `main()`.
+
+## 6. Remote Config Implementation
+
+**Parameters:** `daily_ad_limit`, `coins_per_ad`  
+**Implementation:** Service class with initialization, fetching, and getter methods.  
+**Usage:** Fetch values in WatchEarnScreen for limit and reward amount.
+
+## 7. Firebase Free Tier Optimization for 5k DAU
+
+**Minimize Reads:** Use specific document streams, pagination, cached aggregates.  
+**Minimize Writes:** Use `FieldValue.increment()` for atomic operations.  
+**Efficient Data Structure:** Denormalized structure to avoid costly queries.
+
+## 8. Common Bugs & Errors to Avoid
+
+**Navigation Issues:** Ensure each screen has a unique route name and proper navigation handling.  
+**State Management:** Avoid rebuilding entire widgets on state changes; use selective rebuilding.  
+**Memory Leaks:** Always dispose controllers, listeners, and ad objects.  
+**Platform-Specific Issues:** Configure AdMob and Firebase properly for both Android and iOS.  
+**Ad Lifecycle:** Always check if ads are loaded before showing them.
+
+## 9. PDF Export Implementation
+
+**Use Case:** Allow users to export their transaction history or earnings report as PDF.
+
+**Implementation:** Use `flutter_to_pdf` package or `screenshot + pdf` packages:
+
+```dart
+// Example using flutter_to_pdf
+final ExportDelegate exportDelegate = ExportDelegate();
+
+ExportFrame(
+  frameId: 'withdrawalHistoryFrame',
+  exportDelegate: exportDelegate,
+  child: WithdrawalHistoryWidget(),
+);
+
+// Export to PDF
+final pdf = await exportDelegate.exportToPdfDocument('withdrawalHistoryFrame');
+```
+
+**UI Integration:** Add "Export to PDF" button in Withdraw Screen and Profile Screen.
+
+## 10. Conclusion & Next Steps
+
+This document provides a detailed blueprint for building Rewardly with separate empty feature screens and bottom navigation. The key to success lies in attention to detail: state management, atomic Firestore operations, strategic AdMob placement, dynamic control via Remote Config, and rigorous error handling.
+
+### Next Steps:
+
+1. Create the Firebase project and configure all services
+2. Set up the Flutter project with the outlined folder structure
+3. Implement core services (Auth, Firestore, Remote Config)
+4. Build the authentication flow
+5. Implement the main app structure with bottom navigation
+6. Build the HomeScreen with empty placeholder cards
+7. Implement the five Empty Feature Screens
+8. Integrate AdMob and build the WatchEarnScreen
+9. Build the remaining screens (Profile, Withdraw, Referrals)
+10. Implement the Admin Panel
+11. Thoroughly test all flows on both Android and iOS
